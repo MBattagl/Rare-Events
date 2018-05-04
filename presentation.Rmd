@@ -1,0 +1,85 @@
+---
+title: "Rare Events"
+author: "Michael Battaglia"
+date: "May 3, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+source("logistic-scratch.R")
+```
+
+## Setup Simulation
+
+We will generate a random independent variable $x_1 \sim N(0, 1)$. 
+
+`Y` is generated from this variable, plus some noise. $Y = \beta_0 + \beta_1 * x_1 + N(0, 1)$.
+
+`Y_resp` is a discrete representation of `Y`, if `Y >= 0` then `Y_resp = 1` otherwise `Y_resp = 0`.
+
+The size of $\beta_1$ is important here, it is a measure of how much signal there is for our model to pick up in comparison to the amount of noise. 
+
+If $\beta_1 = 2$, then there is $2 * x_1 \sim N(0, 4)$ signal coming from our predictors compared to $N(0, 1)$ in noise. 
+
+We'll call this a `signal_to_noise` of 4. This is simply $(\beta_{1})^ 2$.
+
+$\beta_0$ will be fixed such that $P(Y\_resp = 1) = P(Y >= 0) = .05$, 5% of observations should have events. In R, $qnorm(.05, sd = \sqrt{((\beta_1) ^ 2 + 1)})$.
+
+If you are interested in the derivation:
+$$\Large P(Y \geq 0) \\ 
+\Large = P(\beta_0 + \beta_1 \cdot x_1 + N(0, 1) \geq 0) \\
+\Large = P(\beta_1 \cdot x_1 + N(0, 1) \geq -1 \cdot \beta_0) \\
+\Large = P(N(0, 1 + (\beta_1) ^ 2) \geq -1 \cdot \beta_0) \\
+\Large = P(N(0, 1 + (\beta_1) ^ 2) \leq \beta_0)
+$$
+
+Lastly, our evaluation metric will be the true probability of event, $P(Y\_resp = 1)$, compared to what the model predicts. Since we have the parameter values and the value of $x_1$, this is a probability statement about the noise term. In R, we use $pnorm(\beta_0 + \beta_1 * x_1)$ to calculate the probability of event for every observation.
+
+Derivation:
+$$\Large P(Y\_resp = 1) \\
+\Large = P(Y \geq 0) \\
+\Large = P(\beta_0 + \beta_1 \cdot x_1 + N(0, 1) \geq 0) \\
+\Large = P(N(0, 1) \geq -1 \cdot (\beta_0 + \beta_1 * x_1)) \\
+\Large = P(N(0, 1) \leq \beta_0 + \beta_1 \cdot x_1)$$
+
+## Big Ideas
+
+- *Selection on Y*: In rare-event data, we don't need to collect every non-event observation. 
+  - Adjust loss function
+- *Parameter estimation is biased*: Parameters for logistic regression are biased, and this bias is amplified in rare-events data.
+- *Predictions using coefficients is biased*: Need to account for the uncertainty in these estimates.
+
+## Selection on Y
+
+- Consider a problem where `P(Y_resp = 1) = .01`. 
+- In the population there are 10,000 events and 990,000 non-events, and every observation costs time and money to collect.
+- It turns out that each observation from the rare class has a much larger effect on improving the model fit than each observation in the common class.
+- If you collect all 10,000 event observations, it is okay to only collect 50,000-100,000 non-event observations. 
+- By using their correction procedure, little to no change in conclusions for much lower cost.
+
+## Correction
+
+Log-likelihood: 
+
+$$\Large \ln(L(\beta|y)) =  \sum_{Y_i = 1} \ln(\pi_i) + \sum_{Y_i = 0} \ln(1 - \pi_i)$$
+
+We will modify this likelihood based on the true proportion of events in the population, and the proportion of events in our sample.
+
+$\Large \tau$: True proportion
+
+$\Large \bar{y}$: Sample proportion
+
+We will weight each term in the likelihood.
+
+$\Large w_1 = \frac{\tau}{\bar{y}}$
+
+$\Large w_0 = \frac{1 - \tau}{1 - \bar{y}}$
+
+Adjusted log-likelihood: 
+
+$$\Large \ln(L(\beta|y)) =  w_1 \cdot \sum_{Y_i = 1} \ln(\pi_i) + w_0 \cdot \sum_{Y_i = 0} \ln(1 - \pi_i)$$
+
+## Rare-events Bias Correction
+
+- 
